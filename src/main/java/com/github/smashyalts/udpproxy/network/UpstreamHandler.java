@@ -164,10 +164,6 @@ public class UpstreamHandler extends SimpleChannelInboundHandler<DatagramPacket>
                 }
             }
         });
-
-        if (config.isDebugMode()) {
-            logger.debug("Forwarded {} bytes to backend {}", dataToSend.readableBytes(), backend);
-        }
     }
 
     @Override
