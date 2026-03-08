@@ -47,6 +47,21 @@ public class UdpHaproxyProxy {
             // Load configuration
             ProxyConfig config = ProxyConfig.load(configPath);
             logger.info("Configuration loaded: {}", config);
+            
+            // Info message if PROXY protocol is enabled
+            if (config.isUseProxyProtocol()) {
+                logger.info("╔═══════════════════════════════════════════════════════════════════════╗");
+                logger.info("║ PROXY Protocol v2 Outbound: ENABLED                                  ║");
+                logger.info("║                                                                       ║");
+                logger.info("║ This proxy will send HAProxy PROXY protocol v2 headers to backends.  ║");
+                logger.info("║                                                                       ║");
+                logger.info("║ ✓ Supported backends: Geyser, custom applications with PROXY support ║");
+                logger.info("║ ✗ NOT supported: Vanilla Minecraft Bedrock servers                   ║");
+                logger.info("║                                                                       ║");
+                logger.info("║ If clients cannot connect, verify your backend supports this or set  ║");
+                logger.info("║ 'use-proxy-protocol: false' in config.yml                            ║");
+                logger.info("╚═══════════════════════════════════════════════════════════════════════╝");
+            }
 
             // Create and start the proxy server
             proxyServer = new ProxyServer(config);

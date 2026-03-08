@@ -101,10 +101,13 @@ public class UpstreamHandler extends SimpleChannelInboundHandler<DatagramPacket>
                     .option(ChannelOption.AUTO_READ, true)
                     .handler(new DownstreamHandler(clientAddress, upstreamChannel, config));
 
+            // Bind to a random local port (let OS choose)
             Channel downstreamChannel = bootstrap.bind(0).sync().channel();
 
-            // Connect the downstream channel to the selected backend
-            downstreamChannel.connect(remoteAddress).sync();
+            // DO NOT connect() the downstream channel!
+            // UDP is connectionless - we need to receive responses from the backend
+            // which may come from any source address/port
+            // The DatagramPacket destination in forwardToBackend handles addressing
 
             ProxySession session = new ProxySession(clientAddress, realClientAddress, downstreamChannel, backend);
 
@@ -146,11 +149,21 @@ public class UpstreamHandler extends SimpleChannelInboundHandler<DatagramPacket>
             dataToSend = payload;
         }
 
-        downstream.writeAndFlush(new DatagramPacket(dataToSend, backend.getSocketAddress()));
-
+        InetSocketAddress backendAddr = backend.getSocketAddress();
         if (config.isDebugMode()) {
-            logger.debug("Forwarded {} bytes to backend {}", dataToSend.readableBytes(), backend);
+            logger.debug("Sending {} bytes to backend {} from local port {}", 
+                dataToSend.readableBytes(), backendAddr, downstream.localAddress());
         }
+        
+        downstream.writeAndFlush(new DatagramPacket(dataToSend, backendAddr)).addListener(future -> {
+            if (config.isDebugMode()) {
+                if (future.isSuccess()) {
+                    logger.debug("Successfully sent packet to backend {}", backendAddr);
+                } else {
+                    logger.error("Failed to send packet to backend {}: {}", backendAddr, future.cause().getMessage());
+                }
+            }
+        });
     }
 
     @Override
