@@ -39,12 +39,17 @@ load-balancing-strategy: "roundrobin"
 # When enabled, the real client IP/port is sent to the backend via
 # a PROXY protocol v2 header prepended to the first UDP packet.
 #
-# ⚠️  WARNING: Only enable this if your backend server explicitly supports
-#    HAProxy PROXY protocol v2. Most game servers (Minecraft Bedrock, etc.)
-#    do NOT support this and will ignore all packets if enabled.
+# ✓ SUPPORTED backends that can parse PROXY protocol v2:
+#   - Geyser standalone (Minecraft Bedrock to Java proxy)
+#   - Custom applications with PROXY protocol support
+#   - Other proxies/load balancers that support HAProxy PROXY protocol
 #
-#    If clients cannot see your server or connect, this is likely the issue.
-#    Keep this set to 'false' unless you know your backend supports it.
+# ✗ NOT SUPPORTED backends (will ignore packets):
+#   - Vanilla Minecraft Bedrock Edition servers
+#   - Most standard game servers
+#
+# Use case: Load balancing Geyser instances to preserve real client IPs.
+# If clients cannot connect, verify backend support or set to 'false'.
 use-proxy-protocol: false
 
 # Whether to expect HAProxy PROXY protocol v2 headers on incoming packets.

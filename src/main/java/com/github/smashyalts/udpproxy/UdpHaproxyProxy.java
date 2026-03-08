@@ -48,20 +48,19 @@ public class UdpHaproxyProxy {
             ProxyConfig config = ProxyConfig.load(configPath);
             logger.info("Configuration loaded: {}", config);
             
-            // Warn if PROXY protocol is enabled (most UDP servers don't support it)
+            // Info message if PROXY protocol is enabled
             if (config.isUseProxyProtocol()) {
-                logger.warn("╔═══════════════════════════════════════════════════════════════════════╗");
-                logger.warn("║ WARNING: PROXY protocol v2 outbound is ENABLED                       ║");
-                logger.warn("║                                                                       ║");
-                logger.warn("║ Your backend server MUST support HAProxy PROXY protocol v2 headers   ║");
-                logger.warn("║ or it will IGNORE all packets and clients cannot connect.            ║");
-                logger.warn("║                                                                       ║");
-                logger.warn("║ Most game servers (Minecraft Bedrock, etc.) do NOT support this.     ║");
-                logger.warn("║ If clients cannot connect, set 'use-proxy-protocol: false' in your   ║");
-                logger.warn("║ config.yml and restart the proxy.                                    ║");
-                logger.warn("║                                                                       ║");
-                logger.warn("║ Only enable this if your backend explicitly supports PROXY protocol. ║");
-                logger.warn("╚═══════════════════════════════════════════════════════════════════════╝");
+                logger.info("╔═══════════════════════════════════════════════════════════════════════╗");
+                logger.info("║ PROXY Protocol v2 Outbound: ENABLED                                  ║");
+                logger.info("║                                                                       ║");
+                logger.info("║ This proxy will send HAProxy PROXY protocol v2 headers to backends.  ║");
+                logger.info("║                                                                       ║");
+                logger.info("║ ✓ Supported backends: Geyser, custom applications with PROXY support ║");
+                logger.info("║ ✗ NOT supported: Vanilla Minecraft Bedrock servers                   ║");
+                logger.info("║                                                                       ║");
+                logger.info("║ If clients cannot connect, verify your backend supports this or set  ║");
+                logger.info("║ 'use-proxy-protocol: false' in config.yml                            ║");
+                logger.info("╚═══════════════════════════════════════════════════════════════════════╝");
             }
 
             // Create and start the proxy server

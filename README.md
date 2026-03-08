@@ -166,14 +166,52 @@ If no `backends` list is specified, the proxy falls back to using `remote-addres
 
 ## HAProxy Integration
 
-### ⚠️ Important: PROXY Protocol Compatibility
+### PROXY Protocol Compatibility
 
-**Most UDP game servers (including Minecraft Bedrock) do NOT support HAProxy PROXY protocol v2.**
+HAProxy PROXY protocol v2 is supported for backends that can parse these headers.
 
-Only enable PROXY protocol if:
-- ✅ Your backend is a custom application that explicitly supports PROXY protocol v2
-- ✅ Your backend is another proxy/load balancer that understands PROXY protocol v2
-- ❌ Do NOT enable for standard game servers (Minecraft, etc.)
+**✓ Supported Backends:**
+- **Geyser Standalone** — Minecraft Bedrock to Java proxy (supports PROXY protocol v2)
+- Custom applications with PROXY protocol support
+- Other proxies/load balancers (HAProxy, Nginx, etc.)
+
+**✗ NOT Supported:**
+- Vanilla Minecraft Bedrock Edition servers
+- Most standard game servers without PROXY protocol support
+
+### Load Balancing Geyser Instances
+
+This proxy is ideal for load balancing multiple Geyser standalone instances while preserving real client IPs:
+
+**Example Configuration:**
+```yaml
+bind-address: "0.0.0.0"
+bind-port: 19132
+
+# Enable PROXY protocol to send real client IPs to Geyser
+use-proxy-protocol: true
+
+# Load balance across multiple Geyser instances
+load-balancing-strategy: "leastconn"
+backends:
+  - address: "10.0.0.1"
+    port: 19133      # Geyser instance 1
+    weight: 1
+  - address: "10.0.0.2"
+    port: 19133      # Geyser instance 2
+    weight: 1
+
+session-timeout-seconds: 300
+debug-mode: false
+```
+
+**Geyser Configuration:**
+In each Geyser instance's `config.yml`, ensure it listens on the correct port and has PROXY protocol enabled:
+```yaml
+bedrock:
+  port: 19133
+  enable-proxy-protocol: true
+```
 
 ### Proxy sitting behind HAProxy
 
@@ -214,12 +252,15 @@ To inform the backend server of the real client IP (only if backend supports PRO
 
 **Symptom:** You see packets being forwarded in debug mode, but clients don't see the server or cannot connect.
 
-**Most Common Cause:** PROXY protocol v2 is enabled but your backend doesn't support it.
+**Common Causes:**
 
-**Solution:**
-1. Check your `config.yml` — if `use-proxy-protocol: true`, change it to `false`
-2. Restart the proxy
-3. Most game servers (Minecraft Bedrock, etc.) do NOT support HAProxy PROXY protocol v2
+1. **PROXY protocol mismatch:**
+   - If using vanilla Minecraft Bedrock servers: Set `use-proxy-protocol: false`
+   - If using Geyser: Set `use-proxy-protocol: true` AND ensure Geyser has `enable-proxy-protocol: true`
+   
+2. **Geyser not configured for PROXY protocol:**
+   - If you enabled `use-proxy-protocol: true` but Geyser doesn't have `enable-proxy-protocol: true` in its config, it will ignore packets
+   - Check each Geyser instance's `config.yml`
 
 **How to verify:** Enable `debug-mode: true` and check the logs:
 - ✅ You should see: `Received X bytes from backend, forwarding to client`
