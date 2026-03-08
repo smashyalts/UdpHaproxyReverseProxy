@@ -1,6 +1,7 @@
 plugins {
     id 'java'
     id 'application'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 group = 'com.github.smashyalts'
@@ -38,5 +39,12 @@ test {
 jar {
     manifest {
         attributes 'Main-Class': application.mainClass
+    }
+}
+
+shadowJar {
+    archiveClassifier.set('')
+    manifest {
+        attributes 'Main-Class': application.mainClass.get()
     }
 }
