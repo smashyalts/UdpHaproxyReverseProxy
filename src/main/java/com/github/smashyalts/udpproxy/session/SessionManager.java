@@ -1,5 +1,6 @@
 package com.github.smashyalts.udpproxy.session;
 
+import com.github.smashyalts.udpproxy.loadbalancer.LoadBalancer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -13,6 +14,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * Manages proxy sessions, mapping client addresses to their backend connections.
  * Sessions are automatically cleaned up after a configurable timeout period.
+ * Notifies the load balancer when sessions are created or removed so that
+ * strategies like least-connections can track active connection counts.
  */
 public class SessionManager {
 
@@ -22,6 +25,7 @@ public class SessionManager {
     private final int sessionTimeoutSeconds;
     private final int maxSessions;
     private final ScheduledExecutorService cleanupExecutor;
+    private volatile LoadBalancer loadBalancer;
 
     public SessionManager(int sessionTimeoutSeconds, int maxSessions) {
         this.sessionTimeoutSeconds = sessionTimeoutSeconds;
@@ -33,6 +37,13 @@ public class SessionManager {
         });
         this.cleanupExecutor.scheduleAtFixedRate(this::cleanupExpiredSessions,
                 sessionTimeoutSeconds, sessionTimeoutSeconds, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Set the load balancer to notify on session lifecycle events.
+     */
+    public void setLoadBalancer(LoadBalancer loadBalancer) {
+        this.loadBalancer = loadBalancer;
     }
 
     /**
@@ -61,7 +72,11 @@ public class SessionManager {
             return null;
         }
         sessions.put(clientAddress, session);
-        logger.info("New session created for {} (total: {})", clientAddress, sessions.size());
+        if (loadBalancer != null && session.getBackend() != null) {
+            loadBalancer.onSessionCreated(session.getBackend());
+        }
+        logger.info("New session created for {} -> {} (total: {})",
+                clientAddress, session.getBackend(), sessions.size());
         return session;
     }
 
@@ -71,6 +86,9 @@ public class SessionManager {
     public void removeSession(InetSocketAddress clientAddress) {
         ProxySession session = sessions.remove(clientAddress);
         if (session != null) {
+            if (loadBalancer != null && session.getBackend() != null) {
+                loadBalancer.onSessionRemoved(session.getBackend());
+            }
             session.close();
             logger.info("Session removed for {} (total: {})", clientAddress, sessions.size());
         }
@@ -99,6 +117,9 @@ public class SessionManager {
             ProxySession session = entry.getValue();
             if (session.isExpired(sessionTimeoutSeconds) || !session.getDownstreamChannel().isActive()) {
                 sessions.remove(entry.getKey());
+                if (loadBalancer != null && session.getBackend() != null) {
+                    loadBalancer.onSessionRemoved(session.getBackend());
+                }
                 session.close();
                 removed++;
             }
@@ -114,7 +135,11 @@ public class SessionManager {
     public void shutdown() {
         cleanupExecutor.shutdown();
         for (Map.Entry<InetSocketAddress, ProxySession> entry : sessions.entrySet()) {
-            entry.getValue().close();
+            ProxySession session = entry.getValue();
+            if (loadBalancer != null && session.getBackend() != null) {
+                loadBalancer.onSessionRemoved(session.getBackend());
+            }
+            session.close();
         }
         sessions.clear();
         logger.info("Session manager shut down");

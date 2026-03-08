@@ -1,16 +1,23 @@
 package com.github.smashyalts.udpproxy.config;
 
+import com.github.smashyalts.udpproxy.loadbalancer.Backend;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
  * Configuration for the UDP HAProxy reverse proxy.
  * Loaded from a YAML file following the Geyser configuration pattern.
+ * <p>
+ * Supports both single-backend (remote-address/remote-port) and
+ * multi-backend (backends list) configuration for load balancing.
  */
 public class ProxyConfig {
 
@@ -23,6 +30,8 @@ public class ProxyConfig {
     private int sessionTimeoutSeconds = 60;
     private int maxSessions = 0;
     private boolean debugMode = false;
+    private String loadBalancingStrategy = "roundrobin";
+    private List<Backend> backends = new ArrayList<>();
 
     public ProxyConfig() {
     }
@@ -52,6 +61,7 @@ public class ProxyConfig {
     /**
      * Load configuration from an input stream (for testing and embedded configs).
      */
+    @SuppressWarnings("unchecked")
     public void loadFromStream(InputStream is) {
         Yaml yaml = new Yaml();
         Map<String, Object> data = yaml.load(is);
@@ -85,6 +95,33 @@ public class ProxyConfig {
         if (data.containsKey("debug-mode")) {
             this.debugMode = (Boolean) data.get("debug-mode");
         }
+        if (data.containsKey("load-balancing-strategy")) {
+            this.loadBalancingStrategy = (String) data.get("load-balancing-strategy");
+        }
+        if (data.containsKey("backends")) {
+            this.backends = new ArrayList<>();
+            List<Map<String, Object>> backendList = (List<Map<String, Object>>) data.get("backends");
+            if (backendList != null) {
+                for (Map<String, Object> entry : backendList) {
+                    String address = (String) entry.get("address");
+                    int port = ((Number) entry.get("port")).intValue();
+                    int weight = entry.containsKey("weight") ? ((Number) entry.get("weight")).intValue() : 1;
+                    this.backends.add(new Backend(address, port, weight));
+                }
+            }
+        }
+    }
+
+    /**
+     * Get the resolved list of backends for load balancing.
+     * If no backends are explicitly configured, falls back to the single
+     * remote-address/remote-port as a single backend.
+     */
+    public List<Backend> getResolvedBackends() {
+        if (backends != null && !backends.isEmpty()) {
+            return Collections.unmodifiableList(backends);
+        }
+        return Collections.singletonList(new Backend(remoteAddress, remotePort));
     }
 
     public String getBindAddress() {
@@ -123,6 +160,14 @@ public class ProxyConfig {
         return debugMode;
     }
 
+    public String getLoadBalancingStrategy() {
+        return loadBalancingStrategy;
+    }
+
+    public List<Backend> getBackends() {
+        return backends;
+    }
+
     @Override
     public String toString() {
         return "ProxyConfig{" +
@@ -135,6 +180,8 @@ public class ProxyConfig {
                 ", sessionTimeoutSeconds=" + sessionTimeoutSeconds +
                 ", maxSessions=" + maxSessions +
                 ", debugMode=" + debugMode +
+                ", loadBalancingStrategy='" + loadBalancingStrategy + '\'' +
+                ", backends=" + getResolvedBackends() +
                 '}';
     }
 }

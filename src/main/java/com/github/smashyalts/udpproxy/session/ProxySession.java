@@ -1,5 +1,6 @@
 package com.github.smashyalts.udpproxy.session;
 
+import com.github.smashyalts.udpproxy.loadbalancer.Backend;
 import io.netty.channel.Channel;
 
 import java.net.InetSocketAddress;
@@ -14,6 +15,7 @@ public class ProxySession {
     private final InetSocketAddress clientAddress;
     private final InetSocketAddress realClientAddress;
     private final Channel downstreamChannel;
+    private final Backend backend;
     private final AtomicLong lastActivity;
     private volatile boolean proxyProtocolSent;
 
@@ -23,12 +25,14 @@ public class ProxySession {
      * @param clientAddress     the address the proxy received the packet from
      * @param realClientAddress the real client address (may differ if PROXY protocol was received)
      * @param downstreamChannel the channel used to communicate with the backend
+     * @param backend           the backend server this session is connected to
      */
     public ProxySession(InetSocketAddress clientAddress, InetSocketAddress realClientAddress,
-                        Channel downstreamChannel) {
+                        Channel downstreamChannel, Backend backend) {
         this.clientAddress = clientAddress;
         this.realClientAddress = realClientAddress;
         this.downstreamChannel = downstreamChannel;
+        this.backend = backend;
         this.lastActivity = new AtomicLong(System.currentTimeMillis());
         this.proxyProtocolSent = false;
     }
@@ -43,6 +47,10 @@ public class ProxySession {
 
     public Channel getDownstreamChannel() {
         return downstreamChannel;
+    }
+
+    public Backend getBackend() {
+        return backend;
     }
 
     public long getLastActivity() {
@@ -76,6 +84,7 @@ public class ProxySession {
         return "ProxySession{" +
                 "client=" + clientAddress +
                 ", realClient=" + realClientAddress +
+                ", backend=" + backend +
                 ", active=" + downstreamChannel.isActive() +
                 '}';
     }

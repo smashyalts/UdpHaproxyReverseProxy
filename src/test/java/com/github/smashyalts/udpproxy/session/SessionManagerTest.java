@@ -1,5 +1,6 @@
 package com.github.smashyalts.udpproxy.session;
 
+import com.github.smashyalts.udpproxy.loadbalancer.Backend;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
@@ -21,6 +22,7 @@ class SessionManagerTest {
 
     private SessionManager sessionManager;
     private NioEventLoopGroup group;
+    private static final Backend TEST_BACKEND = new Backend("127.0.0.1", 25565);
 
     @BeforeEach
     void setUp() {
@@ -55,7 +57,7 @@ class SessionManagerTest {
     void testAddAndGetSession() throws Exception {
         InetSocketAddress clientAddr = new InetSocketAddress("192.168.1.1", 12345);
         Channel channel = createDummyChannel();
-        ProxySession session = new ProxySession(clientAddr, clientAddr, channel);
+        ProxySession session = new ProxySession(clientAddr, clientAddr, channel, TEST_BACKEND);
 
         ProxySession added = sessionManager.addSession(clientAddr, session);
         assertNotNull(added);
@@ -64,13 +66,14 @@ class SessionManagerTest {
         ProxySession retrieved = sessionManager.getSession(clientAddr);
         assertNotNull(retrieved);
         assertEquals(clientAddr, retrieved.getClientAddress());
+        assertEquals(TEST_BACKEND, retrieved.getBackend());
     }
 
     @Test
     void testRemoveSession() throws Exception {
         InetSocketAddress clientAddr = new InetSocketAddress("192.168.1.1", 12345);
         Channel channel = createDummyChannel();
-        ProxySession session = new ProxySession(clientAddr, clientAddr, channel);
+        ProxySession session = new ProxySession(clientAddr, clientAddr, channel, TEST_BACKEND);
 
         sessionManager.addSession(clientAddr, session);
         assertEquals(1, sessionManager.getSessionCount());
@@ -92,9 +95,9 @@ class SessionManagerTest {
             Channel ch2 = createDummyChannel();
             Channel ch3 = createDummyChannel();
 
-            assertNotNull(limitedManager.addSession(addr1, new ProxySession(addr1, addr1, ch1)));
-            assertNotNull(limitedManager.addSession(addr2, new ProxySession(addr2, addr2, ch2)));
-            assertNull(limitedManager.addSession(addr3, new ProxySession(addr3, addr3, ch3)));
+            assertNotNull(limitedManager.addSession(addr1, new ProxySession(addr1, addr1, ch1, TEST_BACKEND)));
+            assertNotNull(limitedManager.addSession(addr2, new ProxySession(addr2, addr2, ch2, TEST_BACKEND)));
+            assertNull(limitedManager.addSession(addr3, new ProxySession(addr3, addr3, ch3, TEST_BACKEND)));
 
             assertEquals(2, limitedManager.getSessionCount());
 
@@ -110,7 +113,7 @@ class SessionManagerTest {
         try {
             InetSocketAddress clientAddr = new InetSocketAddress("192.168.1.1", 12345);
             Channel channel = createDummyChannel();
-            ProxySession session = new ProxySession(clientAddr, clientAddr, channel);
+            ProxySession session = new ProxySession(clientAddr, clientAddr, channel, TEST_BACKEND);
 
             shortTimeoutManager.addSession(clientAddr, session);
             assertNotNull(shortTimeoutManager.getSession(clientAddr));
@@ -128,7 +131,7 @@ class SessionManagerTest {
     void testHasSession() throws Exception {
         InetSocketAddress clientAddr = new InetSocketAddress("192.168.1.1", 12345);
         Channel channel = createDummyChannel();
-        ProxySession session = new ProxySession(clientAddr, clientAddr, channel);
+        ProxySession session = new ProxySession(clientAddr, clientAddr, channel, TEST_BACKEND);
 
         assertFalse(sessionManager.hasSession(clientAddr));
         sessionManager.addSession(clientAddr, session);
@@ -140,7 +143,7 @@ class SessionManagerTest {
         for (int i = 0; i < 5; i++) {
             InetSocketAddress addr = new InetSocketAddress("192.168.1." + (i + 1), 10000 + i);
             Channel channel = createDummyChannel();
-            sessionManager.addSession(addr, new ProxySession(addr, addr, channel));
+            sessionManager.addSession(addr, new ProxySession(addr, addr, channel, TEST_BACKEND));
         }
 
         assertEquals(5, sessionManager.getSessionCount());

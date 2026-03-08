@@ -1,6 +1,8 @@
 package com.github.smashyalts.udpproxy.network;
 
 import com.github.smashyalts.udpproxy.config.ProxyConfig;
+import com.github.smashyalts.udpproxy.loadbalancer.Backend;
+import com.github.smashyalts.udpproxy.loadbalancer.LoadBalancer;
 import com.github.smashyalts.udpproxy.protocol.HAProxyUtil;
 import com.github.smashyalts.udpproxy.session.ProxySession;
 import com.github.smashyalts.udpproxy.session.SessionManager;
@@ -17,7 +19,7 @@ import java.net.InetSocketAddress;
 
 /**
  * Handles incoming UDP packets from clients on the upstream (listening) channel.
- * Creates sessions and forwards packets to the backend server.
+ * Creates sessions and forwards packets to a backend server selected by the load balancer.
  * Follows the Geyser pattern for upstream connection handling.
  */
 public class UpstreamHandler extends SimpleChannelInboundHandler<DatagramPacket> {
@@ -26,12 +28,15 @@ public class UpstreamHandler extends SimpleChannelInboundHandler<DatagramPacket>
 
     private final ProxyConfig config;
     private final SessionManager sessionManager;
+    private final LoadBalancer loadBalancer;
     private final EventLoopGroup workerGroup;
     private Channel upstreamChannel;
 
-    public UpstreamHandler(ProxyConfig config, SessionManager sessionManager, EventLoopGroup workerGroup) {
+    public UpstreamHandler(ProxyConfig config, SessionManager sessionManager,
+                           LoadBalancer loadBalancer, EventLoopGroup workerGroup) {
         this.config = config;
         this.sessionManager = sessionManager;
+        this.loadBalancer = loadBalancer;
         this.workerGroup = workerGroup;
     }
 
@@ -85,7 +90,9 @@ public class UpstreamHandler extends SimpleChannelInboundHandler<DatagramPacket>
     }
 
     private ProxySession createSession(InetSocketAddress clientAddress, InetSocketAddress realClientAddress) {
-        InetSocketAddress remoteAddress = new InetSocketAddress(config.getRemoteAddress(), config.getRemotePort());
+        // Select a backend using the load balancer
+        Backend backend = loadBalancer.selectBackend();
+        InetSocketAddress remoteAddress = backend.getSocketAddress();
 
         try {
             Bootstrap bootstrap = new Bootstrap();
@@ -95,13 +102,18 @@ public class UpstreamHandler extends SimpleChannelInboundHandler<DatagramPacket>
 
             Channel downstreamChannel = bootstrap.bind(0).sync().channel();
 
-            // Connect the downstream channel to the remote address for easy sending
+            // Connect the downstream channel to the selected backend
             downstreamChannel.connect(remoteAddress).sync();
 
-            ProxySession session = new ProxySession(clientAddress, realClientAddress, downstreamChannel);
+            ProxySession session = new ProxySession(clientAddress, realClientAddress, downstreamChannel, backend);
+
+            if (config.isDebugMode()) {
+                logger.debug("Selected backend {} for client {}", backend, clientAddress);
+            }
+
             return sessionManager.addSession(clientAddress, session);
         } catch (Exception e) {
-            logger.error("Failed to create session for {}", clientAddress, e);
+            logger.error("Failed to create session for {} -> {}", clientAddress, backend, e);
             return null;
         }
     }
@@ -114,6 +126,7 @@ public class UpstreamHandler extends SimpleChannelInboundHandler<DatagramPacket>
             return;
         }
 
+        Backend backend = session.getBackend();
         ByteBuf dataToSend;
 
         // If proxy protocol outbound is enabled and we haven't sent the header yet,
@@ -126,18 +139,16 @@ public class UpstreamHandler extends SimpleChannelInboundHandler<DatagramPacket>
             session.setProxyProtocolSent(true);
 
             if (config.isDebugMode()) {
-                logger.debug("Prepended PROXY protocol v2 header for {} -> backend", realClientAddress);
+                logger.debug("Prepended PROXY protocol v2 header for {} -> {}", realClientAddress, backend);
             }
         } else {
             dataToSend = payload;
         }
 
-        downstream.writeAndFlush(new DatagramPacket(dataToSend,
-                new InetSocketAddress(config.getRemoteAddress(), config.getRemotePort())));
+        downstream.writeAndFlush(new DatagramPacket(dataToSend, backend.getSocketAddress()));
 
         if (config.isDebugMode()) {
-            logger.debug("Forwarded {} bytes to backend {}:{}",
-                    dataToSend.readableBytes(), config.getRemoteAddress(), config.getRemotePort());
+            logger.debug("Forwarded {} bytes to backend {}", dataToSend.readableBytes(), backend);
         }
     }
 

@@ -7,11 +7,33 @@ bind-address: "0.0.0.0"
 # The port the proxy will listen on (default: Bedrock port)
 bind-port: 19132
 
-# The address of the remote/backend server
+# The address of the remote/backend server (used when no backends list is configured)
 remote-address: "127.0.0.1"
 
-# The port of the remote/backend server
+# The port of the remote/backend server (used when no backends list is configured)
 remote-port: 25565
+
+# Load balancing strategy. Supported values:
+#   "roundrobin" - Distribute connections evenly across backends (like HAProxy default)
+#   "leastconn"  - Route to the backend with fewest active sessions (like HAProxy leastconn)
+#   "random"     - Select a random backend for each new session (like HAProxy random)
+load-balancing-strategy: "roundrobin"
+
+# List of backend servers for load balancing.
+# If this list is empty or not specified, falls back to remote-address/remote-port.
+# Each backend has: address, port, and optional weight (default: 1).
+# Higher weight means the backend receives proportionally more connections.
+#
+# backends:
+#   - address: "10.0.0.1"
+#     port: 25565
+#     weight: 1
+#   - address: "10.0.0.2"
+#     port: 25565
+#     weight: 2
+#   - address: "10.0.0.3"
+#     port: 25565
+#     weight: 1
 
 # Whether to use HAProxy PROXY protocol v2 when forwarding to the backend.
 # When enabled, the real client IP/port is sent to the backend via

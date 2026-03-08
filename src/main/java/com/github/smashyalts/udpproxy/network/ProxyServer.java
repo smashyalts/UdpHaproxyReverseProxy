@@ -1,6 +1,8 @@
 package com.github.smashyalts.udpproxy.network;
 
 import com.github.smashyalts.udpproxy.config.ProxyConfig;
+import com.github.smashyalts.udpproxy.loadbalancer.LoadBalancer;
+import com.github.smashyalts.udpproxy.loadbalancer.LoadBalancerFactory;
 import com.github.smashyalts.udpproxy.session.SessionManager;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.Channel;
@@ -16,7 +18,8 @@ import java.net.InetSocketAddress;
 /**
  * The main UDP proxy server. Binds to the configured address and port,
  * manages the Netty event loop groups, and coordinates the upstream/downstream
- * packet flow. Follows Geyser's server architecture patterns.
+ * packet flow with load balancing across multiple backends.
+ * Follows Geyser's server architecture patterns.
  */
 public class ProxyServer {
 
@@ -24,6 +27,7 @@ public class ProxyServer {
 
     private final ProxyConfig config;
     private final SessionManager sessionManager;
+    private final LoadBalancer loadBalancer;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
     private Channel serverChannel;
@@ -31,6 +35,9 @@ public class ProxyServer {
     public ProxyServer(ProxyConfig config) {
         this.config = config;
         this.sessionManager = new SessionManager(config.getSessionTimeoutSeconds(), config.getMaxSessions());
+        this.loadBalancer = LoadBalancerFactory.create(
+                config.getLoadBalancingStrategy(), config.getResolvedBackends());
+        this.sessionManager.setLoadBalancer(this.loadBalancer);
     }
 
     /**
@@ -47,12 +54,12 @@ public class ProxyServer {
                 .channel(NioDatagramChannel.class)
                 .option(ChannelOption.SO_BROADCAST, true)
                 .option(ChannelOption.SO_REUSEADDR, true)
-                .handler(new UpstreamHandler(config, sessionManager, workerGroup));
+                .handler(new UpstreamHandler(config, sessionManager, loadBalancer, workerGroup));
 
         serverChannel = bootstrap.bind(bindAddress).sync().channel();
 
         logger.info("UDP Proxy server started on {}:{}", config.getBindAddress(), config.getBindPort());
-        logger.info("Forwarding to {}:{}", config.getRemoteAddress(), config.getRemotePort());
+        logger.info("Load balancing strategy: {}", config.getLoadBalancingStrategy());
         logger.info("Proxy Protocol outbound: {}", config.isUseProxyProtocol() ? "ENABLED" : "DISABLED");
         logger.info("Proxy Protocol inbound: {}", config.isReceiveProxyProtocol() ? "ENABLED" : "DISABLED");
         logger.info("Session timeout: {}s", config.getSessionTimeoutSeconds());
@@ -87,6 +94,10 @@ public class ProxyServer {
 
     public SessionManager getSessionManager() {
         return sessionManager;
+    }
+
+    public LoadBalancer getLoadBalancer() {
+        return loadBalancer;
     }
 
     public Channel getServerChannel() {
