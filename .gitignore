@@ -19,3 +19,6 @@ Thumbs.db
 # Runtime
 logs/
 *.log
+
+# Temporary files
+META-INF/
