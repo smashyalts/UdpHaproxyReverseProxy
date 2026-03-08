@@ -38,6 +38,13 @@ load-balancing-strategy: "roundrobin"
 # Whether to use HAProxy PROXY protocol v2 when forwarding to the backend.
 # When enabled, the real client IP/port is sent to the backend via
 # a PROXY protocol v2 header prepended to the first UDP packet.
+#
+# ⚠️  WARNING: Only enable this if your backend server explicitly supports
+#    HAProxy PROXY protocol v2. Most game servers (Minecraft Bedrock, etc.)
+#    do NOT support this and will ignore all packets if enabled.
+#
+#    If clients cannot see your server or connect, this is likely the issue.
+#    Keep this set to 'false' unless you know your backend supports it.
 use-proxy-protocol: false
 
 # Whether to expect HAProxy PROXY protocol v2 headers on incoming packets.

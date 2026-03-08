@@ -166,6 +166,15 @@ If no `backends` list is specified, the proxy falls back to using `remote-addres
 
 ## HAProxy Integration
 
+### ⚠️ Important: PROXY Protocol Compatibility
+
+**Most UDP game servers (including Minecraft Bedrock) do NOT support HAProxy PROXY protocol v2.**
+
+Only enable PROXY protocol if:
+- ✅ Your backend is a custom application that explicitly supports PROXY protocol v2
+- ✅ Your backend is another proxy/load balancer that understands PROXY protocol v2
+- ❌ Do NOT enable for standard game servers (Minecraft, etc.)
+
 ### Proxy sitting behind HAProxy
 
 If this proxy sits behind an HAProxy instance that adds PROXY protocol headers:
@@ -173,18 +182,97 @@ If this proxy sits behind an HAProxy instance that adds PROXY protocol headers:
 1. Set `receive-proxy-protocol: true` in `config.yml`
 2. Configure HAProxy to send PROXY protocol v2 with your UDP frontend
 
+Example HAProxy configuration:
+```
+frontend udp_frontend
+    bind :19132
+    mode udp
+    default_backend udp_backend
+
+backend udp_backend
+    mode udp
+    server proxy1 127.0.0.1:19133 send-proxy-v2
+```
+
 ### Forwarding real client IP to backend
 
-To inform the backend server of the real client IP:
+To inform the backend server of the real client IP (only if backend supports PROXY protocol v2):
 
 1. Set `use-proxy-protocol: true` in `config.yml`
 2. The backend must support receiving PROXY protocol v2 headers prepended to the first UDP packet
+3. **If unsure, keep this DISABLED** — enabling it without backend support will break connectivity
 
 ## Testing
 
 ```bash
 ./gradlew test
 ```
+
+## Troubleshooting
+
+### Clients cannot see the server in their server list
+
+**Symptom:** You see packets being forwarded in debug mode, but clients don't see the server or cannot connect.
+
+**Most Common Cause:** PROXY protocol v2 is enabled but your backend doesn't support it.
+
+**Solution:**
+1. Check your `config.yml` — if `use-proxy-protocol: true`, change it to `false`
+2. Restart the proxy
+3. Most game servers (Minecraft Bedrock, etc.) do NOT support HAProxy PROXY protocol v2
+
+**How to verify:** Enable `debug-mode: true` and check the logs:
+- ✅ You should see: `Received X bytes from backend, forwarding to client`
+- ❌ If you only see: `Forwarded X bytes to backend` but never responses, your backend isn't responding
+
+**Why this happens:** When PROXY protocol is enabled, the proxy prepends a 28-byte (IPv4) or 52-byte (IPv6) header to the first packet. If the backend doesn't understand this header, it treats the packet as invalid and ignores it, never sending a response.
+
+### Backend is not receiving packets
+
+**Symptom:** Debug logs show `Forwarded X bytes to backend` but backend logs show no received packets.
+
+**Possible causes:**
+1. Firewall blocking UDP traffic between proxy and backend
+2. Backend not listening on the configured address/port
+3. Network routing issues
+
+**Solution:**
+1. Verify backend is listening: `netstat -ulnp | grep <backend-port>`
+2. Check firewall rules allow UDP between proxy and backend
+3. Test direct connectivity: `nc -u <backend-ip> <backend-port>`
+
+### Session timeout too short
+
+**Symptom:** Connections work initially but drop unexpectedly during gameplay.
+
+**Solution:**
+- Increase `session-timeout-seconds` in config.yml
+- Minecraft typically needs 60-300 seconds depending on your use case
+- Sessions are cleaned up after the configured timeout of inactivity
+
+### High latency or packet loss
+
+**Symptom:** Gameplay is laggy even though network is fine.
+
+**Possible causes:**
+1. Load balancer selecting a poor backend
+2. Too many concurrent sessions
+3. Network congestion between proxy and backends
+
+**Solution:**
+1. Try different load balancing strategies: `leastconn` or `random`
+2. Set `max-sessions` to limit concurrent connections
+3. Monitor network latency to backends
+4. Place proxy geographically close to backends
+
+### "Max sessions reached" errors
+
+**Symptom:** New clients cannot connect, logs show "Max sessions reached".
+
+**Solution:**
+- Increase `max-sessions` in config.yml, or set to `0` for unlimited
+- Check for session leak (sessions not timing out properly)
+- Monitor session count over time to understand normal usage
 
 ## License
 

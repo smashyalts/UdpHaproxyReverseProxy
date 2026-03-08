@@ -47,6 +47,22 @@ public class UdpHaproxyProxy {
             // Load configuration
             ProxyConfig config = ProxyConfig.load(configPath);
             logger.info("Configuration loaded: {}", config);
+            
+            // Warn if PROXY protocol is enabled (most UDP servers don't support it)
+            if (config.isUseProxyProtocol()) {
+                logger.warn("╔═══════════════════════════════════════════════════════════════════════╗");
+                logger.warn("║ WARNING: PROXY protocol v2 outbound is ENABLED                       ║");
+                logger.warn("║                                                                       ║");
+                logger.warn("║ Your backend server MUST support HAProxy PROXY protocol v2 headers   ║");
+                logger.warn("║ or it will IGNORE all packets and clients cannot connect.            ║");
+                logger.warn("║                                                                       ║");
+                logger.warn("║ Most game servers (Minecraft Bedrock, etc.) do NOT support this.     ║");
+                logger.warn("║ If clients cannot connect, set 'use-proxy-protocol: false' in your   ║");
+                logger.warn("║ config.yml and restart the proxy.                                    ║");
+                logger.warn("║                                                                       ║");
+                logger.warn("║ Only enable this if your backend explicitly supports PROXY protocol. ║");
+                logger.warn("╚═══════════════════════════════════════════════════════════════════════╝");
+            }
 
             // Create and start the proxy server
             proxyServer = new ProxyServer(config);
