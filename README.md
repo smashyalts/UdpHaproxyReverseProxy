@@ -91,6 +91,18 @@ max-sessions: 0
 debug-mode: false
 ```
 
+### Debug Mode
+
+When `debug-mode: true`, the proxy logs detailed information about every packet:
+
+- **Incoming packets:** "Received X bytes from [client-ip] (real: [real-client-ip])"
+- **Backend selection:** "Selected backend [backend] for client [client-ip]"
+- **PROXY protocol headers:** "Decoded PROXY protocol: real client = [real-ip]" and "Prepended PROXY protocol v2 header for [client] -> [backend]"
+- **Forwarded packets:** "Forwarded X bytes to backend [backend]"
+- **Backend responses:** "Received X bytes from backend, forwarding to client [client-ip]"
+
+Debug mode is useful for troubleshooting connectivity issues and verifying that packets are being forwarded correctly.
+
 You can also specify a custom config path:
 
 ```bash
