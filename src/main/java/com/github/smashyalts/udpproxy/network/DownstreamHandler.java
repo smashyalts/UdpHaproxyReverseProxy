@@ -47,11 +47,18 @@ public class DownstreamHandler extends SimpleChannelInboundHandler<DatagramPacke
         upstreamChannel.writeAndFlush(new DatagramPacket(
                 packet.content().retain(),
                 clientAddress
-        ));
+        )).addListener(future -> {
+            if (!future.isSuccess()) {
+                logger.error("Failed to send response to client {}: {}", 
+                        clientAddress, future.cause().getMessage());
+            }
+        });
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         logger.error("Error in downstream handler for client {}", clientAddress, cause);
+        // Close the downstream channel on error to prevent resource leaks
+        ctx.close();
     }
 }

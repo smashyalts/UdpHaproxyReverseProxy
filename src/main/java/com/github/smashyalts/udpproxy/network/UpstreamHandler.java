@@ -98,6 +98,7 @@ public class UpstreamHandler extends SimpleChannelInboundHandler<DatagramPacket>
             Bootstrap bootstrap = new Bootstrap();
             bootstrap.group(workerGroup)
                     .channel(NioDatagramChannel.class)
+                    .option(ChannelOption.AUTO_READ, true)
                     .handler(new DownstreamHandler(clientAddress, upstreamChannel, config));
 
             Channel downstreamChannel = bootstrap.bind(0).sync().channel();
