@@ -48,3 +48,9 @@ shadowJar {
         attributes 'Main-Class': application.mainClass.get()
     }
 }
+
+// Fix implicit dependencies between shadowJar and distribution tasks
+distZip.dependsOn shadowJar
+distTar.dependsOn shadowJar
+startScripts.dependsOn shadowJar
+startShadowScripts.dependsOn jar
