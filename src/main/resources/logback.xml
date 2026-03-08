@@ -5,6 +5,9 @@
         </encoder>
     </appender>
 
+    <!-- Enable DEBUG level for application code -->
+    <logger name="com.github.smashyalts.udpproxy" level="DEBUG"/>
+
     <root level="INFO">
         <appender-ref ref="STDOUT" />
     </root>
