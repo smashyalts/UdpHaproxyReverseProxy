@@ -8,8 +8,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Least-connections load balancing strategy, equivalent to HAProxy's "leastconn" algorithm.
- * Routes new connections to the backend with the fewest active sessions.
- * When there is a tie, backends with higher weight are preferred.
+ * Routes new connections to the backend with the fewest active sessions,
+ * normalized by weight (score = connections / weight).
+ * When scores are equal, the first backend in the list is selected.
  */
 public class LeastConnectionsLoadBalancer implements LoadBalancer {
 

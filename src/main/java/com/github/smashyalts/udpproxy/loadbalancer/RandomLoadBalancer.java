@@ -7,35 +7,38 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Random load balancing strategy, equivalent to HAProxy's "random" algorithm.
- * Selects a random backend for each new connection, respecting weights.
+ * Selects a random backend for each new connection, respecting weights
+ * via cumulative weight ranges to avoid duplicating backend references.
  */
 public class RandomLoadBalancer implements LoadBalancer {
 
     private final List<Backend> backends;
-    private final List<Backend> weightedList;
+    private final int totalWeight;
 
     public RandomLoadBalancer(List<Backend> backends) {
         if (backends == null || backends.isEmpty()) {
             throw new IllegalArgumentException("At least one backend is required");
         }
         this.backends = Collections.unmodifiableList(new ArrayList<>(backends));
-        this.weightedList = buildWeightedList(this.backends);
-    }
-
-    private static List<Backend> buildWeightedList(List<Backend> backends) {
-        List<Backend> list = new ArrayList<>();
-        for (Backend backend : backends) {
-            for (int i = 0; i < backend.getWeight(); i++) {
-                list.add(backend);
-            }
+        int total = 0;
+        for (Backend backend : this.backends) {
+            total += backend.getWeight();
         }
-        return Collections.unmodifiableList(list);
+        this.totalWeight = total;
     }
 
     @Override
     public Backend selectBackend() {
-        int index = ThreadLocalRandom.current().nextInt(weightedList.size());
-        return weightedList.get(index);
+        int value = ThreadLocalRandom.current().nextInt(totalWeight);
+        int cumulative = 0;
+        for (Backend backend : backends) {
+            cumulative += backend.getWeight();
+            if (value < cumulative) {
+                return backend;
+            }
+        }
+        // Should never reach here, but return last as fallback
+        return backends.get(backends.size() - 1);
     }
 
     @Override

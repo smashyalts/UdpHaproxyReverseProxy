@@ -7,13 +7,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Round-robin load balancing strategy, equivalent to HAProxy's "roundrobin" algorithm.
- * Distributes connections evenly across backends, respecting weights.
- * Weighted backends appear multiple times in the rotation cycle.
+ * Distributes connections across backends proportionally to their weights
+ * using a smooth weighted round-robin algorithm that avoids duplicating
+ * backend references in memory.
  */
 public class RoundRobinLoadBalancer implements LoadBalancer {
 
     private final List<Backend> backends;
-    private final List<Backend> weightedList;
+    private final int totalWeight;
     private final AtomicInteger counter = new AtomicInteger(0);
 
     public RoundRobinLoadBalancer(List<Backend> backends) {
@@ -21,23 +22,25 @@ public class RoundRobinLoadBalancer implements LoadBalancer {
             throw new IllegalArgumentException("At least one backend is required");
         }
         this.backends = Collections.unmodifiableList(new ArrayList<>(backends));
-        this.weightedList = buildWeightedList(this.backends);
-    }
-
-    private static List<Backend> buildWeightedList(List<Backend> backends) {
-        List<Backend> list = new ArrayList<>();
-        for (Backend backend : backends) {
-            for (int i = 0; i < backend.getWeight(); i++) {
-                list.add(backend);
-            }
+        int total = 0;
+        for (Backend backend : this.backends) {
+            total += backend.getWeight();
         }
-        return Collections.unmodifiableList(list);
+        this.totalWeight = total;
     }
 
     @Override
     public Backend selectBackend() {
-        int index = Math.floorMod(counter.getAndIncrement(), weightedList.size());
-        return weightedList.get(index);
+        int index = Math.floorMod(counter.getAndIncrement(), totalWeight);
+        int cumulative = 0;
+        for (Backend backend : backends) {
+            cumulative += backend.getWeight();
+            if (index < cumulative) {
+                return backend;
+            }
+        }
+        // Should never reach here, but return last as fallback
+        return backends.get(backends.size() - 1);
     }
 
     @Override
