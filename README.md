@@ -28,8 +28,10 @@ A configurable UDP reverse proxy with HAProxy PROXY protocol v2 support and buil
 ### Build
 
 ```bash
-./gradlew build
+./gradlew shadowJar
 ```
+
+This creates a fat JAR (uber JAR) at `build/libs/UdpHaproxyReverseProxy-1.0.0-SNAPSHOT.jar` with all dependencies included.
 
 ### Run
 
